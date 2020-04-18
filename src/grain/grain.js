@@ -1,7 +1,5 @@
 // @flow
 
-/* global BigInt */
-
 /**
  * This module contains the types for tracking Grain, which is the native
  * project-specific, cred-linked token created in SourceCred instances. In
@@ -27,14 +25,14 @@
 export type Grain = number;
 
 // $ExpectFlowError
-export const zero = 0n;
+export const ZERO = 0n;
 
 // How many digits of precision there are in "one" grain
-export const decimalPrecision = 18;
+export const DECIMAL_PRECISION = 18;
 
 // One "full" grain
 // $ExpectFlowError
-export const one = 10n ** BigInt(decimalPrecision);
+export const ONE = 10n ** BigInt(DECIMAL_PRECISION);
 
 export const DEFAULT_SUFFIX = "g";
 
@@ -65,10 +63,10 @@ export function format(
   if (
     !Number.isInteger(decimals) ||
     decimals < 0 ||
-    decimals > decimalPrecision
+    decimals > DECIMAL_PRECISION
   ) {
     throw new Error(
-      `decimals must be integer in range [0..${decimalPrecision}]`
+      `decimals must be integer in range [0..${DECIMAL_PRECISION}]`
     );
   }
   const isNegative = grain < 0;
@@ -79,15 +77,15 @@ export function format(
   }
 
   // If the number is less than one, we need to pad it with zeros at the front
-  if (digits.length < decimalPrecision + 1) {
+  if (digits.length < DECIMAL_PRECISION + 1) {
     digits = [
-      ...new Array(decimalPrecision + 1 - digits.length).fill("0"),
+      ...new Array(DECIMAL_PRECISION + 1 - digits.length).fill("0"),
       ...digits,
     ];
   }
   // If we have more than 1000 grain, then we will insert commas for
   // readability
-  const integerDigits = digits.length - decimalPrecision;
+  const integerDigits = digits.length - DECIMAL_PRECISION;
   const numCommasToInsert = Math.floor(integerDigits / 3);
   for (let i = 0; i < numCommasToInsert; i++) {
     // Count digits backwards from the last integer.
@@ -98,13 +96,46 @@ export function format(
   }
   if (decimals > 0) {
     // Insert a decimal point at the right spot
-    digits.splice(digits.length - decimalPrecision, 0, ".");
+    digits.splice(digits.length - DECIMAL_PRECISION, 0, ".");
   }
   // Slice away all the unwanted precision
-  digits = digits.slice(0, digits.length - decimalPrecision + decimals);
+  digits = digits.slice(0, digits.length - DECIMAL_PRECISION + decimals);
   if (isNegative) {
     // re-insert the negative sign, if appropriate
     digits.splice(0, 0, "-");
   }
   return digits.join("") + suffix;
+}
+
+/**
+ * Multiply a grain amount by a floating point number.
+ *
+ * Use this method when you need to multiply a grain balance by a floating
+ * point number, e.g. a ratio.
+ *
+ * Note that this method is imprecise. It is not safe to assume, for example,
+ * that `multiply(g, 1/3) + multiply(g, 2/3) === g` due to loss of precision.
+ * However, the errors will be small in absolute terms (i.e. tiny compared to
+ * one full grain).
+ *
+ * See some messy analysis of the numerical errors here:
+ * https://observablehq.com/@decentralion/grain-arithmetic
+ */
+export function multiplyFloat(grain: Grain, num: number): Grain {
+  return BigInt(Math.floor(Number(grain) * num));
+}
+
+/**
+ * Approximately create a grain balance from a float.
+ *
+ * This method tries to convert the floating point `amt` into a grain
+ * balance. For example, `grain(1)` approximately equals `ONE`.
+ *
+ * Do not assume this will be precise! For example, `grain(0.1337)` results in
+ * `133700000000000016n`. This method is intended for test code.
+ *
+ * This is a shorthand for `multiplyFloat(ONE, amt)`.
+ */
+export function fromApproximateFloat(f: number): Grain {
+  return multiplyFloat(ONE, f);
 }
